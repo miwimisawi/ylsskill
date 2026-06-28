@@ -16,15 +16,23 @@ RERANK_MODEL  = "BAAI/bge-reranker-v2-m3"
 # ── API ────────────────────────────────────────────────────────────────────
 SILICONFLOW_API_KEY  = "sk-wykbbnrkhudmhaervmhrontzugxfrlmucnxkhtmklcdpbenr"
 SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
-LLM_MODEL            = "Qwen/Qwen2.5-72B-Instruct"   # default; overrideable
+LLM_MODEL            = "Qwen/Qwen3.6-35B-A3B"   # default; overrideable
 
 # Models available in the UI dropdown (SiliconFlow-hosted)
 AVAILABLE_MODELS = [
-    {"id": "Qwen/Qwen2.5-72B-Instruct",  "label": "Qwen2.5-72B（默认，高质量）"},
-    {"id": "Qwen/Qwen2.5-32B-Instruct",  "label": "Qwen2.5-32B（较快）"},
-    {"id": "Qwen/Qwen2.5-7B-Instruct",   "label": "Qwen2.5-7B（最快）"},
-    {"id": "deepseek-ai/DeepSeek-V3",     "label": "DeepSeek-V3（推理强）"},
-    {"id": "THUDM/glm-4-9b-chat",         "label": "GLM-4-9B（轻量）"},
+    {"id": "Qwen/Qwen3.6-35B-A3B",            "label": "Qwen3.6-35B-A3B（默认）"},
+    {"id": "Qwen/Qwen3.6-27B",                "label": "Qwen3.6-27B"},
+    {"id": "Qwen/Qwen3.5-397B-A17B",          "label": "Qwen3.5-397B-A17B（旗舰）"},
+    {"id": "Qwen/Qwen3.5-122B-A10B",          "label": "Qwen3.5-122B-A10B"},
+    {"id": "Qwen/Qwen3.5-35B-A3B",            "label": "Qwen3.5-35B-A3B"},
+    {"id": "Qwen/Qwen3.5-27B",                "label": "Qwen3.5-27B"},
+    {"id": "Qwen/Qwen3.5-4B",                 "label": "Qwen3.5-4B（最快）"},
+    {"id": "deepseek-ai/DeepSeek-V4-Pro",     "label": "DeepSeek-V4-Pro"},
+    {"id": "deepseek-ai/DeepSeek-V4-Flash",   "label": "DeepSeek-V4-Flash（快）"},
+    {"id": "deepseek-ai/DeepSeek-V3.2",       "label": "DeepSeek-V3.2"},
+    {"id": "THUDM/GLM-5.2",                   "label": "GLM-5.2"},
+    {"id": "THUDM/GLM-Z1-9B-0414",            "label": "GLM-Z1-9B-0414"},
+    {"id": "THUDM/GLM-4-9B-0414",             "label": "GLM-4-9B-0414"},
 ]
 
 # OpenAI-compatible (with BASE_URL override)
