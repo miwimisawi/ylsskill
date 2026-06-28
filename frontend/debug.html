@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>眼科助手 · 调试模式</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface2: #334155;
+    --border: #334155;
+    --primary: #3b82f6;
+    --primary-light: #1e3a5f;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --green: #22c55e; --green-bg: #052e16;
+    --yellow: #eab308; --yellow-bg: #422006;
+    --red: #ef4444; --red-bg: #450a0a;
+    --blue: #38bdf8; --blue-bg: #0c2340;
+    --shadow: 0 1px 3px rgba(0,0,0,0.4);
+    --radius: 10px;
+    --radius-sm: 6px;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
+  .logo-icon {
+    width: 28px; height: 28px; background: var(--primary);
+    border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #fff;
+  }
+  .badge { background: #7c3aed; color: #ede9fe; font-size: 10px;
+    padding: 2px 7px; border-radius: 99px; font-weight: 500; }
+  .btn { background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-muted); padding: 5px 12px; border-radius: var(--radius-sm);
+    cursor: pointer; font-size: 12px; transition: all 0.15s; text-decoration: none; display: inline-block; }
+  .btn:hover { color: var(--text); border-color: #64748b; }
+
+  /* ── Layout: left panel + right panel ── */
+  .layout {
+    flex: 1; display: flex; min-height: 0; overflow: hidden;
+  }
+
+  /* ── Left: chat panel ── */
+  .panel-chat {
+    flex: 0 0 480px; display: flex; flex-direction: column;
+    border-right: 1px solid var(--border);
+  }
+  #chat {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  #chat::-webkit-scrollbar { width: 5px; }
+  #chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .msg { display: flex; flex-direction: column; gap: 4px; }
+  .msg.user { align-items: flex-end; }
+  .msg.assistant { align-items: flex-start; }
+  .bubble {
+    max-width: 90%; padding: 10px 14px;
+    border-radius: var(--radius); font-size: 13px; line-height: 1.65;
+  }
+  .msg.user .bubble { background: var(--primary); color: #fff; border-bottom-right-radius: 3px; }
+  .msg.assistant .bubble {
+    background: var(--surface); border: 1px solid var(--border);
+    border-bottom-left-radius: 3px;
+  }
+  .bubble h1,.bubble h2,.bubble h3 { font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+  .bubble h1:first-child,.bubble h2:first-child,.bubble h3:first-child { margin-top: 0; }
+  .bubble ul,.bubble ol { padding-left: 18px; margin-bottom: 6px; }
+  .bubble li { margin-bottom: 3px; }
+  .bubble strong { font-weight: 600; color: #f1f5f9; }
+  .bubble code { background: #0f172a; padding: 1px 5px; border-radius: 3px;
+    font-family: var(--mono); font-size: 12px; color: #7dd3fc; }
+  .bubble pre { background: #0f172a; padding: 10px; border-radius: 6px;
+    overflow-x: auto; margin: 6px 0; }
+  .bubble pre code { color: #a5f3fc; }
+
+  .typing { display: flex; align-items: center; gap: 4px; padding: 10px 14px; }
+  .typing span { width: 5px; height: 5px; background: var(--text-muted);
+    border-radius: 50%; animation: bounce 1.2s infinite; }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%,60%,100% { transform: translateY(0); opacity: 0.3; }
+    30% { transform: translateY(-5px); opacity: 1; }
+  }
+
+  .msg-meta { max-width: 90%; }
+  .sources { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .src-chip {
+    font-size: 10px; padding: 2px 7px; border-radius: 99px;
+    border: 1px solid var(--border); color: var(--text-muted); font-family: var(--mono);
+  }
+
+  /* ── Input area (chat panel) ── */
+  .chat-input {
+    flex-shrink: 0; padding: 12px; border-top: 1px solid var(--border);
+  }
+  .input-row {
+    display: flex; gap: 8px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 8px 8px 8px 12px;
+  }
+  .input-row:focus-within { border-color: var(--primary); }
+  #query {
+    flex: 1; border: none; outline: none; background: transparent;
+    color: var(--text); font-size: 13px; resize: none; max-height: 100px;
+    font-family: inherit;
+  }
+  #query::placeholder { color: var(--text-muted); }
+  .btn-send {
+    background: var(--primary); color: #fff; border: none;
+    width: 32px; height: 32px; border-radius: var(--radius-sm);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: background 0.15s;
+  }
+  .btn-send:hover { background: #2563eb; }
+  .btn-send:disabled { background: var(--border); cursor: not-allowed; }
+  .btn-send svg { width: 14px; height: 14px; }
+  .opts { display: flex; gap: 10px; margin-bottom: 8px; align-items: center; flex-wrap: wrap; }
+  .toggle { display: flex; align-items: center; gap: 4px;
+    font-size: 11px; color: var(--text-muted); cursor: pointer; }
+  .toggle input { accent-color: var(--primary); }
+  .opt-sep { width: 1px; height: 12px; background: var(--border); }
+  .opt-label { font-size: 11px; color: var(--text-muted); }
+  .model-select {
+    font-size: 11px; color: var(--text-muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 2px 5px; background: var(--surface2);
+    cursor: pointer; outline: none;
+  }
+  .model-select:hover, .model-select:focus { border-color: var(--primary); color: var(--text); }
+
+  /* ── Right: debug panel ── */
+  .panel-debug {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+    background: var(--bg);
+  }
+  .panel-debug::-webkit-scrollbar { width: 5px; }
+  .panel-debug::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .debug-placeholder {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 13px; flex-direction: column; gap: 8px;
+  }
+  .debug-placeholder .icon { font-size: 28px; opacity: 0.4; }
+
+  /* ── Debug cards ── */
+  .dcard {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .dcard-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; background: var(--surface2); cursor: pointer;
+    border-bottom: 1px solid var(--border); user-select: none;
+  }
+  .dcard-header:hover { background: #3f4f65; }
+  .dcard-title { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .dcard-chevron { font-size: 10px; color: var(--text-muted); transition: transform 0.2s; }
+  .dcard.collapsed .dcard-chevron { transform: rotate(-90deg); }
+  .dcard.collapsed .dcard-body { display: none; }
+  .dcard-body { padding: 12px; }
+
+  /* Badges */
+  .badge-green { background: var(--green-bg); color: var(--green);
+    font-size: 10px; padding: 2px 7px; border-radius: 99px; font-weight: 600; }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow);
+    font-size: 10px; padding: 2px 7px; border-radius: 99px; font-weight: 600; }
+  .badge-red { background: var(--red-bg); color: var(--red);
+    font-size: 10px; padding: 2px 7px; border-radius: 99px; font-weight: 600; }
+  .badge-blue { background: var(--blue-bg); color: var(--blue);
+    font-size: 10px; padding: 2px 7px; border-radius: 99px; font-weight: 600; }
+  .badge-grey { background: var(--surface2); color: var(--text-muted);
+    font-size: 10px; padding: 2px 7px; border-radius: 99px; }
+
+  /* Timing bars */
+  .timing-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .timing-label { font-size: 11px; color: var(--text-muted); width: 100px; flex-shrink: 0; font-family: var(--mono); }
+  .timing-bar-wrap { flex: 1; background: var(--surface2); border-radius: 3px; height: 6px; }
+  .timing-bar { height: 6px; border-radius: 3px; background: var(--primary); }
+  .timing-val { font-size: 11px; color: var(--text-muted); font-family: var(--mono); width: 50px; text-align: right; }
+
+  /* Hits table */
+  .hit-row {
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; margin-bottom: 6px; font-size: 11px;
+  }
+  .hit-row:last-child { margin-bottom: 0; }
+  .hit-meta { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+  .hit-rank { font-family: var(--mono); color: var(--text-muted); }
+  .hit-db { color: var(--blue); font-family: var(--mono); }
+  .hit-score { color: var(--green); font-family: var(--mono); }
+  .hit-text { color: var(--text-muted); line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* Queries list */
+  .qlist { list-style: none; }
+  .qlist li {
+    border-left: 2px solid var(--primary-light); padding: 4px 0 4px 10px;
+    font-size: 12px; color: var(--text-muted); margin-bottom: 4px;
+  }
+  .qlist li.original { border-color: var(--primary); color: var(--text); }
+
+  /* KV rows */
+  .kv { display: flex; gap: 8px; margin-bottom: 4px; font-size: 12px; }
+  .kv-key { color: var(--text-muted); min-width: 120px; }
+  .kv-val { color: var(--text); font-family: var(--mono); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">眼</div>
+    <span>眼科住院助手</span>
+    <span class="badge">调试模式</span>
+  </div>
+  <a href="/" class="btn">用户模式</a>
+</header>
+
+<div class="layout">
+
+  <!-- ── Left: Chat ── -->
+  <div class="panel-chat">
+    <div id="chat"></div>
+
+    <div class="chat-input">
+      <div class="opts">
+        <label class="toggle"><input type="checkbox" id="opt-hyde" checked> HyDE</label>
+        <label class="toggle"><input type="checkbox" id="opt-multi" checked> 多查询</label>
+        <label class="toggle"><input type="checkbox" id="opt-stepback" checked> 背景提炼</label>
+        <div class="opt-sep"></div>
+        <span class="opt-label">模型：</span>
+        <select id="opt-model" class="model-select">
+          <option value="Qwen/Qwen2.5-72B-Instruct">Qwen2.5-72B</option>
+          <option value="Qwen/Qwen2.5-32B-Instruct">Qwen2.5-32B</option>
+          <option value="Qwen/Qwen2.5-7B-Instruct">Qwen2.5-7B</option>
+          <option value="deepseek-ai/DeepSeek-V3">DeepSeek-V3</option>
+          <option value="THUDM/glm-4-9b-chat">GLM-4-9B</option>
+        </select>
+      </div>
+      <div class="input-row">
+        <textarea id="query" rows="1" placeholder="输入问题..." oninput="autoResize(this)" onkeydown="handleKey(event)"></textarea>
+        <button class="btn-send" id="send-btn" onclick="sendQuery()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right: Debug ── -->
+  <div class="panel-debug" id="debug-panel">
+    <div class="debug-placeholder" id="debug-placeholder">
+      <div class="icon">⚡</div>
+      <div>发送问题后查看 Pipeline 详情</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '';
+let isGenerating = false;
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuery(); }
+}
+
+function renderMd(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```(\w*)\n([\s\S]*?)```/g, (_,l,c) => `<pre><code>${c.trim()}</code></pre>`)
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+    .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+    .replace(/^\d+\. (.+)$/gm,'<li>$1</li>')
+    .replace(/^[-*] (.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>[\s\S]+?<\/li>)/g,'<ul>$1</ul>')
+    .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
+}
+
+function dcard(id, title, badge, body, collapsed=false) {
+  return `
+  <div class="dcard ${collapsed?'collapsed':''}" id="dc-${id}">
+    <div class="dcard-header" onclick="toggleCard('dc-${id}')">
+      <div class="dcard-title">${title} ${badge}</div>
+      <span class="dcard-chevron">▼</span>
+    </div>
+    <div class="dcard-body">${body}</div>
+  </div>`;
+}
+
+function toggleCard(id) {
+  document.getElementById(id).classList.toggle('collapsed');
+}
+
+function addUserMsg(text) {
+  const chat = document.getElementById('chat');
+  const el = document.createElement('div');
+  el.className = 'msg user';
+  el.innerHTML = `<div class="bubble">${text.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>`;
+  chat.appendChild(el);
+  chat.scrollTop = 9999;
+}
+
+function addAssistantMsg() {
+  const chat = document.getElementById('chat');
+  const el = document.createElement('div');
+  el.className = 'msg assistant';
+  el.innerHTML = `
+    <div class="bubble">
+      <div class="typing"><span></span><span></span><span></span></div>
+    </div>`;
+  chat.appendChild(el);
+  chat.scrollTop = 9999;
+  return el;
+}
+
+function buildDebugPanel(data) {
+  const dp = document.getElementById('debug-panel');
+  const ph = document.getElementById('debug-placeholder');
+  if (ph) ph.remove();
+
+  const {
+    from_cache, confidence, cache_id,
+    timings={}, search_queries=[], retrieval_count=0,
+    crag_best_score, sources=[], model=''
+  } = data;
+
+  // ── 1. Summary card ──
+  const confBadge = from_cache
+    ? '<span class="badge-blue">缓存命中</span>'
+    : confidence === 'high'   ? '<span class="badge-green">HIGH</span>'
+    : confidence === 'medium' ? '<span class="badge-yellow">MEDIUM</span>'
+    : '<span class="badge-red">LOW</span>';
+
+  const summaryHTML = `
+    <div class="kv"><span class="kv-key">置信度</span><span class="kv-val">${confBadge}</span></div>
+    <div class="kv"><span class="kv-key">来自缓存</span><span class="kv-val">${from_cache ? '✅ 是' : '❌ 否'}</span></div>
+    <div class="kv"><span class="kv-key">CRAG 最高分</span><span class="kv-val">${crag_best_score!=null ? crag_best_score.toFixed(4) : '—'}</span></div>
+    <div class="kv"><span class="kv-key">检索命中数</span><span class="kv-val">${retrieval_count}</span></div>
+    <div class="kv"><span class="kv-key">使用模型</span><span class="kv-val" style="font-size:10px;word-break:break-all">${model||'—'}</span></div>
+    <div class="kv"><span class="kv-key">Cache ID</span><span class="kv-val" style="font-size:10px;word-break:break-all">${cache_id||'—'}</span></div>`;
+
+  // ── 2. Timing card ──
+  const totalMs = Object.values(timings).reduce((a,b)=>a+b,0);
+  const timingHTML = Object.entries(timings).map(([k,v]) => {
+    const pct = totalMs > 0 ? (v/totalMs*100) : 0;
+    return `<div class="timing-row">
+      <span class="timing-label">${k}</span>
+      <div class="timing-bar-wrap"><div class="timing-bar" style="width:${pct}%"></div></div>
+      <span class="timing-val">${v.toFixed(2)}s</span>
+    </div>`;
+  }).join('') + `<div class="timing-row">
+    <span class="timing-label" style="color:var(--text)">合计</span>
+    <div class="timing-bar-wrap"><div class="timing-bar" style="width:100%;background:#7c3aed"></div></div>
+    <span class="timing-val" style="color:var(--text)">${totalMs.toFixed(2)}s</span>
+  </div>`;
+
+  // ── 3. Queries card ──
+  const queryHTML = `<ul class="qlist">${search_queries.map((q,i) =>
+    `<li class="${i===0?'original':''}">${i===0?'原始: ':'改写: '}${q.replace(/</g,'&lt;')}</li>`
+  ).join('')}</ul>`;
+
+  // ── 4. Sources card ──
+  const DB_LABELS = {
+    database1:'BCSC-1', database2:'BCSC-2',
+    database3:'眼整形外科', database4:'中文教材',
+    database5:'OCR教材', database6:'科室文书',
+  };
+  const srcHTML = sources.length === 0 ? '<span style="color:var(--text-muted)">无</span>' :
+    sources.map((s,i) => `
+      <div class="hit-row">
+        <div class="hit-meta">
+          <span class="hit-rank">#${i+1}</span>
+          <span class="hit-db">[${DB_LABELS[s.db]||s.db}]</span>
+          <span class="hit-score">score=${(s.score||0).toFixed(4)}</span>
+        </div>
+        <div class="hit-text">${(s.source||'').replace(/</g,'&lt;')}</div>
+      </div>`).join('');
+
+  // ── Feedback ──
+  const fbHTML = cache_id ? `
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+      <span style="font-size:11px;color:var(--text-muted)">标记本次回答：</span>
+      <button onclick="sendFeedback('${cache_id}',true,this)" style="background:var(--green-bg);color:var(--green);border:1px solid #166534;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:11px">👍 有用</button>
+      <button onclick="sendFeedback('${cache_id}',false,this)" style="background:var(--red-bg);color:var(--red);border:1px solid #991b1b;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:11px">👎 没用</button>
+    </div>` : '';
+
+  const html = `
+    ${dcard('summary', '📊 摘要', confBadge, summaryHTML + fbHTML)}
+    ${dcard('timing',  '⏱ 耗时分析', `<span class="badge-grey">${totalMs.toFixed(1)}s</span>`, timingHTML)}
+    ${dcard('queries', '🔍 搜索查询', `<span class="badge-grey">${search_queries.length} 条</span>`, queryHTML, search_queries.length<=1)}
+    ${dcard('sources', '📚 引用来源', `<span class="badge-grey">${sources.length} 条</span>`, srcHTML)}`;
+
+  // Insert at top of debug panel
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+  wrapper.innerHTML = html;
+  dp.insertBefore(wrapper, dp.firstChild);
+}
+
+async function sendQuery() {
+  if (isGenerating) return;
+  const qEl = document.getElementById('query');
+  const query = qEl.value.trim();
+  if (!query) return;
+
+  isGenerating = true;
+  document.getElementById('send-btn').disabled = true;
+  qEl.value = ''; qEl.style.height = 'auto';
+
+  addUserMsg(query);
+  const aEl = addAssistantMsg();
+  const bubble = aEl.querySelector('.bubble');
+  let fullText = '';
+
+  try {
+    const resp = await fetch(`${API}/chat`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        query,
+        use_hyde:        document.getElementById('opt-hyde').checked,
+        use_multi_query: document.getElementById('opt-multi').checked,
+        use_step_back:   document.getElementById('opt-stepback').checked,
+        model:           document.getElementById('opt-model').value,
+        stream: true,
+      }),
+    });
+
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    bubble.innerHTML = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const lines = buf.split('\n');
+      buf = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const evt = JSON.parse(line.slice(6));
+
+        if (evt.type === 'token') {
+          fullText += evt.text;
+          bubble.innerHTML = `<p>${renderMd(fullText)}</p>`;
+          document.getElementById('chat').scrollTop = 9999;
+        } else if (evt.type === 'done') {
+          // Add source chips
+          const DB_LABELS = {database1:'BCSC-1',database2:'BCSC-2',database3:'眼整形',database4:'中文教材',database5:'OCR教材',database6:'文书'};
+          const srcChips = (evt.sources||[]).map(s =>
+            `<span class="src-chip">${DB_LABELS[s.db]||s.db}</span>`).join('');
+          const metaEl = document.createElement('div');
+          metaEl.className = 'msg-meta';
+          metaEl.innerHTML = `<div class="sources">${srcChips}</div>`;
+          aEl.appendChild(metaEl);
+          // Build debug panel
+          buildDebugPanel(evt);
+          reader.cancel();
+          break;
+        } else if (evt.type === 'error') {
+          bubble.innerHTML = `<span style="color:var(--red)">${evt.message}</span>`;
+          reader.cancel();
+          break;
+        }
+      }
+    }
+  } catch(e) {
+    bubble.innerHTML = `<span style="color:var(--red)">连接失败：${e.message}</span>`;
+  }
+
+  isGenerating = false;
+  document.getElementById('send-btn').disabled = false;
+  document.getElementById('query').focus();
+}
+
+async function sendFeedback(cacheId, positive, btn) {
+  await fetch(`${API}/feedback`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({cache_id: cacheId, positive}),
+  });
+  btn.textContent = positive ? '✅ 已标记有用' : '❌ 已标记没用';
+  btn.disabled = true;
+}
+</script>
+</body>
+</html>

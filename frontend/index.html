@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>眼科住院助手</title>
+<style>
+  :root {
+    --bg: #f0f4f8;
+    --surface: #ffffff;
+    --surface2: #f8fafc;
+    --border: #e2e8f0;
+    --primary: #2563eb;
+    --primary-light: #dbeafe;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --assistant-bg: #f1f5f9;
+    --user-bg: #2563eb;
+    --user-text: #ffffff;
+    --shadow: 0 1px 3px rgba(0,0,0,0.1);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    box-shadow: var(--shadow);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--text);
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: var(--primary);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 16px;
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .btn-ghost {
+    background: none; border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 6px 14px; border-radius: var(--radius-sm);
+    cursor: pointer; font-size: 13px;
+    transition: all 0.15s;
+  }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .badge-debug {
+    background: #fef3c7; color: #92400e;
+    font-size: 11px; padding: 2px 8px; border-radius: 99px;
+    border: 1px solid #fde68a;
+  }
+
+  /* ── Main layout ── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    max-width: 860px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 16px;
+    min-height: 0;
+  }
+
+  /* ── Chat area ── */
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    scroll-behavior: smooth;
+  }
+  #chat::-webkit-scrollbar { width: 6px; }
+  #chat::-webkit-scrollbar-track { background: transparent; }
+  #chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .welcome {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--text-muted);
+  }
+  .welcome h2 { font-size: 20px; color: var(--text); margin-bottom: 8px; font-weight: 600; }
+  .welcome p { font-size: 14px; line-height: 1.6; }
+  .suggestions {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    justify-content: center; margin-top: 20px;
+  }
+  .suggestion {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 8px 16px; border-radius: 99px;
+    font-size: 13px; cursor: pointer; color: var(--text);
+    transition: all 0.15s;
+  }
+  .suggestion:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+
+  /* ── Message ── */
+  .msg { display: flex; flex-direction: column; gap: 4px; }
+  .msg.user { align-items: flex-end; }
+  .msg.assistant { align-items: flex-start; }
+
+  .bubble {
+    max-width: 80%;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .msg.user .bubble {
+    background: var(--user-bg);
+    color: var(--user-text);
+    border-bottom-right-radius: 4px;
+  }
+  .msg.assistant .bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+    box-shadow: var(--shadow);
+  }
+
+  /* Markdown-like styles inside bubble */
+  .bubble h1,.bubble h2,.bubble h3 { font-size: 15px; font-weight: 600; margin: 12px 0 6px; }
+  .bubble h1:first-child,.bubble h2:first-child,.bubble h3:first-child { margin-top: 0; }
+  .bubble p { margin-bottom: 8px; }
+  .bubble p:last-child { margin-bottom: 0; }
+  .bubble ul,.bubble ol { padding-left: 20px; margin-bottom: 8px; }
+  .bubble li { margin-bottom: 4px; }
+  .bubble strong { font-weight: 600; }
+  .bubble code {
+    background: #f1f5f9; padding: 1px 5px; border-radius: 4px;
+    font-family: monospace; font-size: 13px;
+  }
+  .bubble pre {
+    background: #f1f5f9; padding: 12px; border-radius: 8px;
+    overflow-x: auto; margin: 8px 0;
+  }
+  .bubble pre code { background: none; padding: 0; }
+
+  /* ── Sources & meta ── */
+  .msg-meta { display: flex; flex-direction: column; gap: 6px; max-width: 80%; }
+  .sources {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .source-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 3px 10px; border-radius: 99px;
+    font-size: 11px; color: var(--text-muted);
+  }
+  .source-chip.db1 { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+  .source-chip.db2 { border-color: #c7d2fe; background: #eef2ff; color: #4338ca; }
+  .source-chip.db3 { border-color: #a7f3d0; background: #ecfdf5; color: #065f46; }
+  .source-chip.db4 { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+  .source-chip.db5 { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
+  .source-chip.db6 { border-color: #d8b4fe; background: #faf5ff; color: #6d28d9; }
+  .confidence-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; padding: 2px 8px; border-radius: 99px;
+  }
+  .confidence-badge.high { background: #dcfce7; color: #166534; }
+  .confidence-badge.medium { background: #fef9c3; color: #854d0e; }
+  .confidence-badge.low { background: #fee2e2; color: #991b1b; }
+  .confidence-badge.cached { background: #e0f2fe; color: #0369a1; }
+
+  /* ── Feedback ── */
+  .feedback-row {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-feedback {
+    background: none; border: 1px solid var(--border);
+    width: 28px; height: 28px; border-radius: 6px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; transition: all 0.15s; color: var(--text-muted);
+  }
+  .btn-feedback:hover { border-color: var(--primary); }
+  .btn-feedback.active-up { background: #dcfce7; border-color: #86efac; color: #166534; }
+  .btn-feedback.active-down { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+
+  /* ── Typing indicator ── */
+  .typing { display: flex; align-items: center; gap: 4px; padding: 12px 16px; }
+  .typing span {
+    width: 6px; height: 6px; background: var(--text-muted);
+    border-radius: 50%; animation: bounce 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%,60%,100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  /* ── Input area ── */
+  .input-area {
+    flex-shrink: 0;
+    padding: 12px 0 20px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .input-row {
+    display: flex;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 8px 8px 16px;
+    box-shadow: var(--shadow-md);
+    transition: border-color 0.15s;
+  }
+  .input-row:focus-within { border-color: var(--primary); }
+  #query {
+    flex: 1; border: none; outline: none;
+    font-size: 14px; line-height: 1.5;
+    resize: none; background: transparent;
+    color: var(--text); max-height: 120px;
+    font-family: inherit;
+  }
+  #query::placeholder { color: var(--text-muted); }
+  .input-actions { display: flex; align-items: flex-end; gap: 6px; }
+  .btn-send {
+    background: var(--primary); color: #fff;
+    border: none; border-radius: var(--radius-sm);
+    width: 36px; height: 36px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s; flex-shrink: 0;
+  }
+  .btn-send:hover { background: #1d4ed8; }
+  .btn-send:disabled { background: var(--border); cursor: not-allowed; }
+  .btn-send svg { width: 16px; height: 16px; }
+  .input-hint {
+    font-size: 11px; color: var(--text-muted);
+    margin-top: 6px; text-align: center;
+  }
+
+  /* ── Options bar ── */
+  .options-bar {
+    display: flex; gap: 8px; align-items: center;
+    margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .opt-label { font-size: 12px; color: var(--text-muted); }
+  .toggle {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 12px; color: var(--text-muted); cursor: pointer;
+    user-select: none;
+  }
+  .toggle input { accent-color: var(--primary); }
+  .toggle:hover { color: var(--text); }
+  .opt-sep { width: 1px; height: 14px; background: var(--border); margin: 0 4px; }
+  .model-select {
+    font-size: 12px; color: var(--text-muted);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 2px 6px; background: var(--surface);
+    cursor: pointer; outline: none;
+    transition: border-color 0.15s;
+  }
+  .model-select:hover, .model-select:focus { border-color: var(--primary); color: var(--text); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">眼</div>
+    <span>眼科住院助手</span>
+  </div>
+  <div class="header-actions">
+    <a href="/debug.html" class="btn-ghost">调试模式</a>
+    <button class="btn-ghost" onclick="clearChat()">清空对话</button>
+  </div>
+</header>
+
+<div class="main">
+  <div id="chat">
+    <div class="welcome" id="welcome">
+      <h2>眼科住院助手</h2>
+      <p>可回答眼科诊疗问题、生成病历文书模板<br>内容来自 BCSC、教材及科室内部规范</p>
+      <div class="suggestions">
+        <div class="suggestion" onclick="suggest(this)">泪道阻塞的手术治疗方案</div>
+        <div class="suggestion" onclick="suggest(this)">给我一个VTE评分病程模板</div>
+        <div class="suggestion" onclick="suggest(this)">急性闭角型青光眼如何紧急处理</div>
+        <div class="suggestion" onclick="suggest(this)">眼眶蜂窝织炎的抗生素选择</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="options-bar">
+      <span class="opt-label">增强：</span>
+      <label class="toggle"><input type="checkbox" id="opt-hyde" checked> HyDE</label>
+      <label class="toggle"><input type="checkbox" id="opt-multi"> 多查询</label>
+      <label class="toggle"><input type="checkbox" id="opt-stepback"> 背景提炼</label>
+      <div class="opt-sep"></div>
+      <span class="opt-label">模型：</span>
+      <select id="opt-model" class="model-select">
+        <option value="Qwen/Qwen2.5-72B-Instruct">Qwen2.5-72B（默认）</option>
+        <option value="Qwen/Qwen2.5-32B-Instruct">Qwen2.5-32B（较快）</option>
+        <option value="Qwen/Qwen2.5-7B-Instruct">Qwen2.5-7B（最快）</option>
+        <option value="deepseek-ai/DeepSeek-V3">DeepSeek-V3</option>
+        <option value="THUDM/glm-4-9b-chat">GLM-4-9B</option>
+      </select>
+    </div>
+    <div class="input-row">
+      <textarea id="query" rows="1" placeholder="输入问题，如：急性泪囊炎如何治疗？" oninput="autoResize(this)" onkeydown="handleKey(event)"></textarea>
+      <div class="input-actions">
+        <button class="btn-send" id="send-btn" onclick="sendQuery()" title="发送 (Enter)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="input-hint">Enter 发送 · Shift+Enter 换行</div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let isGenerating = false;
+
+// ── Markdown renderer (simple) ──────────────────────────────────────────
+function renderMd(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```(\w*)\n([\s\S]*?)```/g, (_,lang,code) =>
+      `<pre><code>${code.trim()}</code></pre>`)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+    .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>[\s\S]+?<\/li>)/g, '<ul>$1</ul>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/^(?!<[hup]|<li|<pre)(.+)$/gm, '$1')
+    .replace(/\n/g, '<br>');
+}
+
+// ── Auto-resize textarea ─────────────────────────────────────────────────
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuery(); }
+}
+
+function suggest(el) {
+  document.getElementById('query').value = el.textContent;
+  autoResize(document.getElementById('query'));
+  sendQuery();
+}
+
+function clearChat() {
+  const chat = document.getElementById('chat');
+  chat.innerHTML = '';
+  const w = document.createElement('div');
+  w.className = 'welcome'; w.id = 'welcome';
+  w.innerHTML = `<h2>眼科住院助手</h2>
+    <p>可回答眼科诊疗问题、生成病历文书模板<br>内容来自 BCSC、教材及科室内部规范</p>
+    <div class="suggestions">
+      <div class="suggestion" onclick="suggest(this)">泪道阻塞的手术治疗方案</div>
+      <div class="suggestion" onclick="suggest(this)">给我一个VTE评分病程模板</div>
+      <div class="suggestion" onclick="suggest(this)">急性闭角型青光眼如何紧急处理</div>
+      <div class="suggestion" onclick="suggest(this)">眼眶蜂窝织炎的抗生素选择</div>
+    </div>`;
+  chat.appendChild(w);
+}
+
+// ── Source chip color by DB ──────────────────────────────────────────────
+const DB_LABELS = {
+  database1: 'BCSC-1', database2: 'BCSC-2',
+  database3: '眼整形外科', database4: '中文教材',
+  database5: 'OCR教材', database6: '科室文书',
+};
+function sourceChip(src) {
+  const cls = src.db ? src.db.replace('database','db') : '';
+  const label = DB_LABELS[src.db] || src.db;
+  return `<span class="source-chip ${cls}" title="${src.source}">${label}</span>`;
+}
+function confidenceHTML(conf, fromCache) {
+  if (fromCache) return `<span class="confidence-badge cached">缓存命中</span>`;
+  const map = {high:'高置信',medium:'中置信',low:'低置信'};
+  return `<span class="confidence-badge ${conf||'medium'}">${map[conf]||conf}</span>`;
+}
+
+// ── Add message ──────────────────────────────────────────────────────────
+function addUserMsg(text) {
+  const w = document.getElementById('welcome');
+  if (w) w.remove();
+  const chat = document.getElementById('chat');
+  const el = document.createElement('div');
+  el.className = 'msg user';
+  el.innerHTML = `<div class="bubble">${text.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>`;
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function addAssistantMsg() {
+  const chat = document.getElementById('chat');
+  const el = document.createElement('div');
+  el.className = 'msg assistant';
+  el.innerHTML = `
+    <div class="bubble">
+      <div class="typing"><span></span><span></span><span></span></div>
+    </div>
+    <div class="msg-meta" id="meta-${Date.now()}" style="display:none"></div>`;
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+  return el;
+}
+
+// ── Main send ────────────────────────────────────────────────────────────
+async function sendQuery() {
+  if (isGenerating) return;
+  const qEl = document.getElementById('query');
+  const query = qEl.value.trim();
+  if (!query) return;
+
+  isGenerating = true;
+  document.getElementById('send-btn').disabled = true;
+  qEl.value = ''; qEl.style.height = 'auto';
+
+  addUserMsg(query);
+  const aEl = addAssistantMsg();
+  const bubble = aEl.querySelector('.bubble');
+  const meta   = aEl.querySelector('.msg-meta');
+
+  let fullText = '';
+  let cacheId = null;
+
+  try {
+    const resp = await fetch(`${API}/chat`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        query,
+        use_hyde:       document.getElementById('opt-hyde').checked,
+        use_multi_query:document.getElementById('opt-multi').checked,
+        use_step_back:  document.getElementById('opt-stepback').checked,
+        model:          document.getElementById('opt-model').value,
+        stream: true,
+      }),
+    });
+
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+
+    bubble.innerHTML = '';  // clear typing indicator
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const lines = buf.split('\n');
+      buf = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const evt = JSON.parse(line.slice(6));
+
+        if (evt.type === 'token') {
+          fullText += evt.text;
+          bubble.innerHTML = `<p>${renderMd(fullText)}</p>`;
+          document.getElementById('chat').scrollTop = 9999;
+
+        } else if (evt.type === 'done') {
+          cacheId = evt.cache_id;
+          // Build meta row
+          const srcs = (evt.sources||[]).map(s => sourceChip(s)).join('');
+          const conf  = confidenceHTML(evt.confidence, evt.from_cache);
+          meta.style.display = '';
+          meta.innerHTML = `
+            <div class="sources">${srcs}${conf}</div>
+            <div class="feedback-row">
+              <button class="btn-feedback" id="up-${cacheId}" onclick="sendFeedback('${cacheId}',true)" title="有用">👍</button>
+              <button class="btn-feedback" id="dn-${cacheId}" onclick="sendFeedback('${cacheId}',false)" title="没用">👎</button>
+            </div>`;
+          reader.cancel();
+          break;
+
+        } else if (evt.type === 'error') {
+          bubble.innerHTML = `<span style="color:#ef4444">${evt.message}</span>`;
+          reader.cancel();
+          break;
+        }
+      }
+    }
+  } catch(e) {
+    bubble.innerHTML = `<span style="color:#ef4444">连接失败：${e.message}</span>`;
+  }
+
+  isGenerating = false;
+  document.getElementById('send-btn').disabled = false;
+  document.getElementById('query').focus();
+}
+
+async function sendFeedback(cacheId, positive) {
+  const upEl = document.getElementById(`up-${cacheId}`);
+  const dnEl = document.getElementById(`dn-${cacheId}`);
+  await fetch(`${API}/feedback`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({cache_id: cacheId, positive}),
+  });
+  upEl.classList.toggle('active-up', positive);
+  dnEl.classList.toggle('active-down', !positive);
+}
+</script>
+</body>
+</html>
