@@ -11,6 +11,9 @@ from src.config import (
     RERANK_MODEL, TOP_K_RERANK,
     SILICONFLOW_API_KEY, SILICONFLOW_BASE_URL,
 )
+from src.logger import get_logger
+
+log = get_logger(__name__)
 
 RERANK_URL = SILICONFLOW_BASE_URL.rstrip("/") + "/rerank"
 
@@ -37,6 +40,7 @@ def rerank(query: str, hits: List[Dict], top_k: int = TOP_K_RERANK) -> List[Dict
         "Content-Type": "application/json",
     }
 
+    log.info("rerank | %d docs → top_%d model=%s", len(documents), top_k, RERANK_MODEL)
     for attempt in range(3):
         try:
             resp = requests.post(RERANK_URL, json=payload, headers=headers, timeout=30)
@@ -44,8 +48,9 @@ def rerank(query: str, hits: List[Dict], top_k: int = TOP_K_RERANK) -> List[Dict
             data = resp.json()
             break
         except Exception as e:
+            log.warning("rerank | attempt %d failed: %s", attempt + 1, e)
             if attempt == 2:
-                # Fallback: return hits as-is with dummy scores
+                log.error("rerank | all attempts failed, falling back to RRF order")
                 result = []
                 for i, h in enumerate(hits[:top_k]):
                     h = h.copy()
@@ -63,7 +68,11 @@ def rerank(query: str, hits: List[Dict], top_k: int = TOP_K_RERANK) -> List[Dict
         h["rerank_score"] = float(score)
         hits_with_scores.append(h)
 
-    return sorted(hits_with_scores, key=lambda x: x["rerank_score"], reverse=True)[:top_k]
+    ranked = sorted(hits_with_scores, key=lambda x: x["rerank_score"], reverse=True)[:top_k]
+    if ranked:
+        log.info("rerank | top scores: %s",
+                 [round(h["rerank_score"], 3) for h in ranked[:5]])
+    return ranked
 
 
 def compress_context(query: str, hits: List[Dict]) -> List[Dict]:

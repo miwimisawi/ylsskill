@@ -6,6 +6,9 @@ from typing import List, Dict, Any, Tuple
 
 from src.config import TOP_K_DENSE, TOP_K_SPARSE, TOP_K_FUSED, RRF_K
 from src.indexer import _tokenize
+from src.logger import get_logger
+
+log = get_logger(__name__)
 
 
 def _rrf_score(rank: int, k: int = RRF_K) -> float:
@@ -14,11 +17,17 @@ def _rrf_score(rank: int, k: int = RRF_K) -> float:
 
 def dense_search(col, query: str, top_k: int = TOP_K_DENSE) -> List[Dict]:
     """Query ChromaDB with dense embedding."""
-    results = col.query(
-        query_texts=[query],
-        n_results=min(top_k, col.count()),
-        include=["documents", "metadatas", "distances"],
-    )
+    n = min(top_k, col.count())
+    log.debug("dense_search | query=%r n_results=%d", query[:60], n)
+    try:
+        results = col.query(
+            query_texts=[query],
+            n_results=n,
+            include=["documents", "metadatas", "distances"],
+        )
+    except Exception:
+        log.exception("dense_search | col.query() failed")
+        return []
     hits = []
     for doc, meta, dist in zip(
         results["documents"][0],
@@ -30,9 +39,10 @@ def dense_search(col, query: str, top_k: int = TOP_K_DENSE) -> List[Dict]:
             "parent_text": meta.get("parent_text", doc),
             "source":      meta.get("source", ""),
             "db":          meta.get("db", ""),
-            "score":       1.0 - dist,   # cosine similarity
+            "score":       1.0 - dist,
             "method":      "dense",
         })
+    log.debug("dense_search | returned %d hits", len(hits))
     return hits
 
 
@@ -100,7 +110,9 @@ def hybrid_search(
     top_k_final: int = TOP_K_FUSED,
 ) -> List[Dict]:
     """Full hybrid search pipeline: dense + sparse → RRF fusion."""
+    log.info("hybrid_search | query=%r", query[:80])
     dense_hits  = dense_search(col, query, top_k=TOP_K_DENSE)
     sparse_hits = sparse_search(bm25, bm25_docs, query, top_k=TOP_K_SPARSE)
     fused       = rrf_fusion(dense_hits, sparse_hits, top_k=top_k_final)
+    log.info("hybrid_search | dense=%d sparse=%d fused=%d", len(dense_hits), len(sparse_hits), len(fused))
     return fused

@@ -16,6 +16,9 @@ import chromadb
 
 from src.config import CACHE_DB_PATH, VECTOR_DB_DIR
 from src.indexer import SiliconFlowEmbeddingFunction
+from src.logger import get_logger
+
+log = get_logger(__name__)
 
 CACHE_COLLECTION   = "query_cache"
 CACHE_SIM_THRESHOLD = 0.92   # cosine similarity threshold for cache hit
@@ -68,20 +71,31 @@ def cache_lookup(query: str) -> Optional[Dict]:
     try:
         col = _get_cache_col()
     except Exception:
+        log.exception("cache_lookup | failed to get collection")
         return None
     try:
-        if col.count() == 0:
+        count = col.count()
+        if count == 0:
+            log.debug("cache_lookup | cache empty")
             return None
     except Exception:
+        log.exception("cache_lookup | col.count() failed")
         return None
 
-    results = col.query(query_texts=[query], n_results=1, include=["distances", "metadatas"])
+    try:
+        results = col.query(query_texts=[query], n_results=1, include=["distances", "metadatas"])
+    except Exception:
+        log.exception("cache_lookup | col.query() failed")
+        return None
+
     if not results["ids"][0]:
+        log.debug("cache_lookup | no results")
         return None
 
     dist  = results["distances"][0][0]
     sim   = 1.0 - dist
     if sim < CACHE_SIM_THRESHOLD:
+        log.debug("cache_lookup | miss (sim=%.3f < threshold=%.2f)", sim, CACHE_SIM_THRESHOLD)
         return None
 
     cache_id = results["ids"][0][0]
@@ -98,16 +112,16 @@ def cache_lookup(query: str) -> Optional[Dict]:
         return None
     query_orig, answer, sources_json, feedback, hit_count = row
 
-    # Skip if user explicitly marked as unhelpful
     if feedback == -1:
+        log.debug("cache_lookup | skipped (negative feedback) id=%s", cache_id)
         return None
 
-    # Update hit count
     conn = _get_db()
     conn.execute("UPDATE cache SET hit_count=hit_count+1 WHERE id=?", (cache_id,))
     conn.commit()
     conn.close()
 
+    log.info("cache_lookup | HIT id=%s sim=%.3f hits=%d", cache_id, sim, hit_count + 1)
     return {
         "cache_id":   cache_id,
         "similarity": sim,
@@ -135,8 +149,9 @@ def cache_store(query: str, answer: str, sources: list = None) -> str:
         """, (cache_id, query, answer, json.dumps(sources or []), time.time()))
         conn.commit()
         conn.close()
-    except Exception as e:
-        print(f"[Cache] store error (non-fatal): {e}")
+        log.info("cache_store | stored id=%s answer_len=%d", cache_id, len(answer))
+    except Exception:
+        log.exception("cache_store | failed (non-fatal) id=%s", cache_id)
     return cache_id
 
 

@@ -4,15 +4,16 @@ LLM Answer Generator.
 Supports:
   - SiliconFlow API (default)
   - OpenAI-compatible API with custom BASE_URL
-  - Local model stub (placeholder)
 """
-from typing import List, Dict, Optional
+from typing import Optional
 from openai import OpenAI
 from src.config import (
     SILICONFLOW_API_KEY, SILICONFLOW_BASE_URL, LLM_MODEL,
     OPENAI_API_KEY, OPENAI_BASE_URL,
 )
+from src.logger import get_logger
 
+log = get_logger(__name__)
 
 SYSTEM_PROMPT = """你是一名面向初级眼科住院医师的AI助手，工作场景是病房日常文书和临床诊疗。
 
@@ -27,17 +28,12 @@ SYSTEM_PROMPT = """你是一名面向初级眼科住院医师的AI助手，工�
 
 
 def _make_client(provider: str = "siliconflow") -> tuple:
-    """Return (OpenAI client, model_name)."""
     if provider == "openai" and OPENAI_API_KEY:
         kwargs = {"api_key": OPENAI_API_KEY}
         if OPENAI_BASE_URL:
             kwargs["base_url"] = OPENAI_BASE_URL
         return OpenAI(**kwargs), "gpt-4o"
-    else:
-        return OpenAI(
-            api_key=SILICONFLOW_API_KEY,
-            base_url=SILICONFLOW_BASE_URL
-        ), LLM_MODEL
+    return OpenAI(api_key=SILICONFLOW_API_KEY, base_url=SILICONFLOW_BASE_URL), LLM_MODEL
 
 
 def generate(
@@ -50,33 +46,18 @@ def generate(
     stream: bool = False,
     token_callback=None,
 ) -> str:
-    """
-    Generate answer from query + retrieved context.
-
-    Args:
-        query: User's question
-        context: Retrieved and compressed context from CRAG
-        provider: "siliconflow" | "openai" | "local"
-        model: Override model name
-        stream: If True, prints tokens to stdout as they arrive
-        token_callback: Optional callable(str) invoked with each token chunk
-    """
     if provider == "local":
         return "[本地模型接口预留 - 请配置 Ollama/vLLM]"
 
     client, default_model = _make_client(provider)
     model = model or default_model
+    log.info("generate | model=%s provider=%s stream=%s callback=%s",
+             model, provider, stream, token_callback is not None)
 
-    user_content = f"""## 参考资料
-{context}
-
----
-
-## 问题
-{query}
-
-请根据以上参考资料回答问题。如参考资料不足，请说明并给出你的建议。"""
-
+    user_content = (
+        f"## 参考资料\n{context}\n\n---\n\n## 问题\n{query}\n\n"
+        "请根据以上参考资料回答问题。如参考资料不足，请说明并给出你的建议。"
+    )
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user",   "content": user_content},
@@ -84,30 +65,49 @@ def generate(
 
     if stream or token_callback is not None:
         full = ""
+        token_count = 0
         extra = {"enable_thinking": False} if provider == "siliconflow" else {}
-        resp = client.chat.completions.create(
-            model=model, messages=messages,
-            max_tokens=max_tokens, temperature=temperature,
-            stream=True,
-            extra_body=extra if extra else None,
-        )
-        for chunk in resp:
-            delta = chunk.choices[0].delta.content or ""
-            if not delta:
-                # Fallback: some models put content in reasoning_content during thinking
-                delta = getattr(chunk.choices[0].delta, "reasoning_content", "") or ""
-            if delta:
-                if stream:
-                    print(delta, end="", flush=True)
-                if token_callback is not None:
-                    token_callback(delta)
-                full += delta
+        try:
+            resp = client.chat.completions.create(
+                model=model, messages=messages,
+                max_tokens=max_tokens, temperature=temperature,
+                stream=True,
+                extra_body=extra if extra else None,
+            )
+            for chunk in resp:
+                # Some providers send empty-choices chunks as heartbeats
+                if not chunk.choices:
+                    continue
+                delta_obj = chunk.choices[0].delta
+                delta = delta_obj.content or ""
+                if not delta:
+                    # Fallback: Qwen3 thinking mode puts content in reasoning_content
+                    delta = getattr(delta_obj, "reasoning_content", "") or ""
+                if delta:
+                    token_count += 1
+                    if stream:
+                        print(delta, end="", flush=True)
+                    if token_callback is not None:
+                        token_callback(delta)
+                    full += delta
+        except Exception:
+            log.exception("generate | streaming error after %d tokens", token_count)
+            raise
         if stream:
             print()
+        log.info("generate | done, tokens=%d chars=%d", token_count, len(full))
+        if not full:
+            log.warning("generate | answer is empty — model=%s may have returned no content", model)
         return full
     else:
-        resp = client.chat.completions.create(
-            model=model, messages=messages,
-            max_tokens=max_tokens, temperature=temperature,
-        )
-        return resp.choices[0].message.content.strip()
+        try:
+            resp = client.chat.completions.create(
+                model=model, messages=messages,
+                max_tokens=max_tokens, temperature=temperature,
+            )
+            answer = resp.choices[0].message.content.strip()
+            log.info("generate | done (non-stream), chars=%d", len(answer))
+            return answer
+        except Exception:
+            log.exception("generate | non-stream error")
+            raise

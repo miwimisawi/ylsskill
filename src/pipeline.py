@@ -20,6 +20,9 @@ from src.reranker  import rerank, compress_context
 from src.crag      import evaluate_retrieval, build_context, CONFIDENCE_LOW
 from src.generator import generate
 from src.config    import TOP_K_RERANK
+from src.logger    import get_logger
+
+log = get_logger(__name__)
 
 
 def _is_template_request(query: str) -> bool:
@@ -53,6 +56,8 @@ def run(
     """
     t0 = time.time()
     debug_info: Dict[str, Any] = {"timings": {}}
+    log.info("pipeline.run | START query=%r hyde=%s multi=%s stepback=%s model=%s",
+             query[:80], use_hyde, use_multi_query, use_step_back, model)
 
     def _emit(evt: dict):
         if emit:
@@ -68,6 +73,7 @@ def run(
     debug_info["timings"]["cache_lookup"] = round(time.time() - t1, 3)
 
     if cached:
+        log.info("pipeline.run | CACHE HIT sim=%.3f", cached.get("similarity", 0))
         if debug:
             print(f"[CACHE HIT] similarity={cached['similarity']:.3f}, hits={cached['hit_count']}")
         _emit({"type": "step", "step": "命中缓存，正在加载…", "progress": 80})
@@ -85,6 +91,7 @@ def run(
             "debug_info": debug_info if debug else {},
         }
 
+    log.info("pipeline.run | CACHE MISS")
     if debug:
         print("[CACHE MISS] Proceeding to retrieval...")
 
@@ -118,6 +125,8 @@ def run(
 
     debug_info["timings"]["enhancement"] = round(time.time() - t1, 3)
     debug_info["search_queries"] = search_queries
+    log.info("pipeline.run | enhancement done: %d queries in %.2fs",
+             len(search_queries), debug_info["timings"]["enhancement"])
 
     # ── 3. Hybrid retrieval ────────────────────────────────────────────────
     _emit({"type": "step", "step": "正在检索知识库…", "progress": 40})
@@ -133,6 +142,8 @@ def run(
     merged_hits = sorted(all_hits.values(), key=lambda x: x.get("rrf_score", 0), reverse=True)[:40]
     debug_info["timings"]["retrieval"] = round(time.time() - t1, 3)
     debug_info["retrieval_count"] = len(merged_hits)
+    log.info("pipeline.run | retrieval done: %d merged hits in %.2fs",
+             len(merged_hits), debug_info["timings"]["retrieval"])
 
     if debug:
         print(f"[Retrieval] {len(merged_hits)} unique hits from {len(search_queries)} queries")
@@ -143,6 +154,8 @@ def run(
     reranked = rerank(query, merged_hits, top_k=TOP_K_RERANK)
     compressed = compress_context(query, reranked)
     debug_info["timings"]["reranking"] = round(time.time() - t1, 3)
+    log.info("pipeline.run | reranking done: %d hits in %.2fs",
+             len(reranked), debug_info["timings"]["reranking"])
 
     if debug:
         print(f"[Rerank] Top scores: {[round(h.get('rerank_score',0),3) for h in reranked[:5]]}")
@@ -153,6 +166,7 @@ def run(
     debug_info["crag_confidence"] = confidence
     debug_info["crag_best_score"] = round(best_score, 4)
 
+    log.info("pipeline.run | CRAG confidence=%s best_score=%.4f", confidence, best_score)
     if debug:
         print(f"[CRAG] confidence={confidence}, best_score={best_score:.4f}")
 
@@ -168,6 +182,10 @@ def run(
         token_callback=lambda t: _emit({"type": "token", "text": t}),
     )
     debug_info["timings"]["generation"] = round(time.time() - t1, 3)
+    log.info("pipeline.run | generation done: answer_len=%d in %.2fs",
+             len(answer), debug_info["timings"]["generation"])
+    if not answer:
+        log.warning("pipeline.run | EMPTY answer returned from generator!")
 
     # ── 7. Cache store ─────────────────────────────────────────────────────
     sources = [{"db": h.get("db",""), "source": h.get("source",""),
@@ -175,6 +193,7 @@ def run(
     cache_id = cache_store(query, answer, sources)
 
     debug_info["timings"]["total"] = round(time.time() - t0, 3)
+    log.info("pipeline.run | DONE total=%.2fs", debug_info["timings"]["total"])
 
     return {
         "answer":     answer,

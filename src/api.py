@@ -25,6 +25,9 @@ from src.indexer import load_index
 from src.pipeline import run
 from src.cache import cache_feedback, cache_stats
 from src.config import AVAILABLE_MODELS, LLM_MODEL
+from src.logger import get_logger
+
+log = get_logger(__name__)
 
 # ── Eager index loading ─────────────────────────────────────────────────────
 _index = None
@@ -34,13 +37,17 @@ _index_ready = threading.Event()
 
 def _load_index_bg():
     global _index
-    print("[Startup] Loading vector index in background...")
+    log.info("startup | loading vector index...")
     t0 = time.time()
-    idx = load_index()
+    try:
+        idx = load_index()
+    except Exception:
+        log.exception("startup | failed to load index")
+        return
     with _index_lock:
         _index = idx
     _index_ready.set()
-    print(f"[Startup] Index ready in {time.time()-t0:.1f}s")
+    log.info("startup | index ready in %.1fs", time.time() - t0)
 
 
 @asynccontextmanager
@@ -128,6 +135,10 @@ async def chat(req: ChatRequest):
         """Called from pipeline thread — thread-safe queue put."""
         loop.call_soon_threadsafe(q.put_nowait, evt)
 
+    log.info("chat | query=%r model=%s hyde=%s multi=%s stepback=%s",
+             req.query[:80], req.model or LLM_MODEL,
+             req.use_hyde, req.use_multi_query, req.use_step_back)
+
     def pipeline_thread():
         try:
             result = run(
@@ -145,9 +156,10 @@ async def chat(req: ChatRequest):
             )
             result_holder["result"] = result
         except Exception as e:
+            log.exception("chat | pipeline_thread error")
             emit({"type": "error", "message": str(e)})
         finally:
-            loop.call_soon_threadsafe(q.put_nowait, None)  # sentinel
+            loop.call_soon_threadsafe(q.put_nowait, None)
 
     threading.Thread(target=pipeline_thread, daemon=True).start()
 
