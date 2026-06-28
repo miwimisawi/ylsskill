@@ -13,9 +13,9 @@ import sqlite3, json, os, time, hashlib
 from typing import Optional, Dict, Any, Tuple
 
 import chromadb
-from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
-from src.config import CACHE_DB_PATH, VECTOR_DB_DIR, EMBED_MODEL
+from src.config import CACHE_DB_PATH, VECTOR_DB_DIR
+from src.indexer import SiliconFlowEmbeddingFunction
 
 CACHE_COLLECTION   = "query_cache"
 CACHE_SIM_THRESHOLD = 0.92   # cosine similarity threshold for cache hit
@@ -26,9 +26,7 @@ _cache_col = None
 def _get_embed_fn():
     global _embed_fn
     if _embed_fn is None:
-        _embed_fn = SentenceTransformerEmbeddingFunction(
-            model_name=EMBED_MODEL, device="cpu", normalize_embeddings=True
-        )
+        _embed_fn = SiliconFlowEmbeddingFunction()
     return _embed_fn
 
 
