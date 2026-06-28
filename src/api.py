@@ -27,9 +27,6 @@ from src.cache import cache_feedback, cache_stats
 from src.config import AVAILABLE_MODELS, LLM_MODEL
 
 # ── Eager index loading ─────────────────────────────────────────────────────
-# Index loads in a background thread at startup so first user request
-# doesn't pay the 10-30s cold-start cost.
-
 _index = None
 _index_lock = threading.Lock()
 _index_ready = threading.Event()
@@ -79,7 +76,7 @@ class ChatRequest(BaseModel):
     use_multi_query: bool = False
     use_step_back: bool = False
     provider: str = "siliconflow"
-    model: Optional[str] = None   # None → use default LLM_MODEL
+    model: Optional[str] = None
     stream: bool = True
 
 class FeedbackRequest(BaseModel):
@@ -116,42 +113,61 @@ async def chat(req: ChatRequest):
     Returns Server-Sent Events stream.
 
     Event types:
+      data: {"type": "step",  "step": "...", "progress": 0-100}
       data: {"type": "token", "text": "..."}
-      data: {"type": "done", "cache_id": "...", "sources": [...], ...}
+      data: {"type": "done",  "cache_id": "...", "sources": [...], ...}
       data: {"type": "error", "message": "..."}
     """
     col, bm25, bm25_docs = get_index()
+
+    loop = asyncio.get_running_loop()
+    q: asyncio.Queue = asyncio.Queue()
+    result_holder: dict = {}
+
+    def emit(evt: dict):
+        """Called from pipeline thread — thread-safe queue put."""
+        loop.call_soon_threadsafe(q.put_nowait, evt)
+
+    def pipeline_thread():
+        try:
+            result = run(
+                query=req.query,
+                col=col,
+                bm25=bm25,
+                bm25_docs=bm25_docs,
+                provider=req.provider,
+                model=req.model,
+                use_hyde=req.use_hyde,
+                use_multi_query=req.use_multi_query,
+                use_step_back=req.use_step_back,
+                debug=False,
+                emit=emit,
+            )
+            result_holder["result"] = result
+        except Exception as e:
+            emit({"type": "error", "message": str(e)})
+        finally:
+            loop.call_soon_threadsafe(q.put_nowait, None)  # sentinel
+
+    threading.Thread(target=pipeline_thread, daemon=True).start()
 
     async def event_stream() -> AsyncGenerator[str, None]:
         def sse(obj: dict) -> str:
             return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
 
-        try:
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                None,
-                lambda: run(
-                    query=req.query,
-                    col=col,
-                    bm25=bm25,
-                    bm25_docs=bm25_docs,
-                    provider=req.provider,
-                    model=req.model,
-                    use_hyde=req.use_hyde,
-                    use_multi_query=req.use_multi_query,
-                    use_step_back=req.use_step_back,
-                    debug=True,
-                )
-            )
+        had_error = False
+        while True:
+            evt = await q.get()
+            if evt is None:
+                break
+            if evt["type"] == "error":
+                had_error = True
+                yield sse(evt)
+                break
+            yield sse(evt)  # step or token events forwarded as-is
 
-            if result.get("from_cache"):
-                yield sse({"type": "token", "text": result["answer"]})
-            else:
-                answer = result["answer"]
-                for i in range(0, len(answer), 4):
-                    yield sse({"type": "token", "text": answer[i:i+4]})
-                    await asyncio.sleep(0)
-
+        if not had_error:
+            result = result_holder.get("result", {})
             di = result.get("debug_info", {})
             yield sse({
                 "type":            "done",
@@ -165,9 +181,6 @@ async def chat(req: ChatRequest):
                 "retrieval_count": di.get("retrieval_count", 0),
                 "crag_best_score": di.get("crag_best_score"),
             })
-
-        except Exception as e:
-            yield sse({"type": "error", "message": str(e)})
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 

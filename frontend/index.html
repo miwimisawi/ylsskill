@@ -70,13 +70,10 @@
     padding: 6px 14px; border-radius: var(--radius-sm);
     cursor: pointer; font-size: 13px;
     transition: all 0.15s;
+    text-decoration: none;
+    display: inline-flex; align-items: center;
   }
   .btn-ghost:hover { background: var(--surface2); color: var(--text); }
-  .badge-debug {
-    background: #fef3c7; color: #92400e;
-    font-size: 11px; padding: 2px 8px; border-radius: 99px;
-    border: 1px solid #fde68a;
-  }
 
   /* ── Main layout ── */
   .main {
@@ -106,11 +103,18 @@
 
   .welcome {
     text-align: center;
-    padding: 48px 24px;
+    padding: 48px 24px 32px;
     color: var(--text-muted);
   }
+  .welcome-avatar {
+    width: 64px; height: 64px;
+    background: var(--primary);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; margin: 0 auto 16px;
+  }
   .welcome h2 { font-size: 20px; color: var(--text); margin-bottom: 8px; font-weight: 600; }
-  .welcome p { font-size: 14px; line-height: 1.6; }
+  .welcome p { font-size: 14px; line-height: 1.6; color: var(--text-muted); }
   .suggestions {
     display: flex; flex-wrap: wrap; gap: 8px;
     justify-content: center; margin-top: 20px;
@@ -166,11 +170,45 @@
   }
   .bubble pre code { background: none; padding: 0; }
 
+  /* ── Progress indicator ── */
+  .progress-wrap {
+    padding: 14px 16px;
+    min-width: 240px;
+  }
+  .progress-step-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .progress-spinner {
+    width: 12px; height: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress-bar-bg {
+    background: var(--border);
+    border-radius: 99px;
+    height: 4px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), #60a5fa);
+    border-radius: 99px;
+    transition: width 0.5s ease;
+    min-width: 8px;
+  }
+
   /* ── Sources & meta ── */
   .msg-meta { display: flex; flex-direction: column; gap: 6px; max-width: 80%; }
-  .sources {
-    display: flex; flex-wrap: wrap; gap: 6px;
-  }
+  .sources { display: flex; flex-wrap: wrap; gap: 6px; }
   .source-chip {
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -187,15 +225,13 @@
     display: inline-flex; align-items: center; gap: 4px;
     font-size: 11px; padding: 2px 8px; border-radius: 99px;
   }
-  .confidence-badge.high { background: #dcfce7; color: #166534; }
+  .confidence-badge.high   { background: #dcfce7; color: #166534; }
   .confidence-badge.medium { background: #fef9c3; color: #854d0e; }
-  .confidence-badge.low { background: #fee2e2; color: #991b1b; }
+  .confidence-badge.low    { background: #fee2e2; color: #991b1b; }
   .confidence-badge.cached { background: #e0f2fe; color: #0369a1; }
 
   /* ── Feedback ── */
-  .feedback-row {
-    display: flex; align-items: center; gap: 6px;
-  }
+  .feedback-row { display: flex; align-items: center; gap: 6px; }
   .btn-feedback {
     background: none; border: 1px solid var(--border);
     width: 28px; height: 28px; border-radius: 6px;
@@ -203,21 +239,8 @@
     font-size: 13px; transition: all 0.15s; color: var(--text-muted);
   }
   .btn-feedback:hover { border-color: var(--primary); }
-  .btn-feedback.active-up { background: #dcfce7; border-color: #86efac; color: #166534; }
+  .btn-feedback.active-up   { background: #dcfce7; border-color: #86efac; color: #166534; }
   .btn-feedback.active-down { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
-
-  /* ── Typing indicator ── */
-  .typing { display: flex; align-items: center; gap: 4px; padding: 12px 16px; }
-  .typing span {
-    width: 6px; height: 6px; background: var(--text-muted);
-    border-radius: 50%; animation: bounce 1.2s infinite;
-  }
-  .typing span:nth-child(2) { animation-delay: 0.2s; }
-  .typing span:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes bounce {
-    0%,60%,100% { transform: translateY(0); opacity: 0.4; }
-    30% { transform: translateY(-6px); opacity: 1; }
-  }
 
   /* ── Input area ── */
   .input-area {
@@ -301,13 +324,13 @@
 <div class="main">
   <div id="chat">
     <div class="welcome" id="welcome">
-      <h2>眼科住院助手</h2>
+      <div class="welcome-avatar">👨‍⚕️</div>
+      <h2>叶老师已经下班啦！有问题可以先问我</h2>
       <p>可回答眼科诊疗问题、生成病历文书模板<br>内容来自 BCSC、教材及科室内部规范</p>
       <div class="suggestions">
-        <div class="suggestion" onclick="suggest(this)">泪道阻塞的手术治疗方案</div>
-        <div class="suggestion" onclick="suggest(this)">给我一个VTE评分病程模板</div>
-        <div class="suggestion" onclick="suggest(this)">急性闭角型青光眼如何紧急处理</div>
-        <div class="suggestion" onclick="suggest(this)">眼眶蜂窝织炎的抗生素选择</div>
+        <div class="suggestion" onclick="suggest(this)">激素冲击的量要怎么定</div>
+        <div class="suggestion" onclick="suggest(this)">泪道冲洗的标准动作</div>
+        <div class="suggestion" onclick="suggest(this)">术后首程的文书注意事项</div>
       </div>
     </div>
   </div>
@@ -391,20 +414,36 @@ function suggest(el) {
   sendQuery();
 }
 
+const WELCOME_HTML = `
+  <div class="welcome-avatar">👨‍⚕️</div>
+  <h2>叶老师已经下班啦！有问题可以先问我</h2>
+  <p>可回答眼科诊疗问题、生成病历文书模板<br>内容来自 BCSC、教材及科室内部规范</p>
+  <div class="suggestions">
+    <div class="suggestion" onclick="suggest(this)">激素冲击的量要怎么定</div>
+    <div class="suggestion" onclick="suggest(this)">泪道冲洗的标准动作</div>
+    <div class="suggestion" onclick="suggest(this)">术后首程的文书注意事项</div>
+  </div>`;
+
 function clearChat() {
   const chat = document.getElementById('chat');
   chat.innerHTML = '';
   const w = document.createElement('div');
   w.className = 'welcome'; w.id = 'welcome';
-  w.innerHTML = `<h2>眼科住院助手</h2>
-    <p>可回答眼科诊疗问题、生成病历文书模板<br>内容来自 BCSC、教材及科室内部规范</p>
-    <div class="suggestions">
-      <div class="suggestion" onclick="suggest(this)">泪道阻塞的手术治疗方案</div>
-      <div class="suggestion" onclick="suggest(this)">给我一个VTE评分病程模板</div>
-      <div class="suggestion" onclick="suggest(this)">急性闭角型青光眼如何紧急处理</div>
-      <div class="suggestion" onclick="suggest(this)">眼眶蜂窝织炎的抗生素选择</div>
-    </div>`;
+  w.innerHTML = WELCOME_HTML;
   chat.appendChild(w);
+}
+
+// ── Progress bar helpers ─────────────────────────────────────────────────
+function makeProgressHTML(step, progress) {
+  return `<div class="progress-wrap">
+    <div class="progress-step-label">
+      <div class="progress-spinner"></div>
+      <span>${step}</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" style="width:${progress}%"></div>
+    </div>
+  </div>`;
 }
 
 // ── Source chip color by DB ──────────────────────────────────────────────
@@ -440,14 +479,13 @@ function addAssistantMsg() {
   const chat = document.getElementById('chat');
   const el = document.createElement('div');
   el.className = 'msg assistant';
+  const metaId = 'meta-' + Date.now();
   el.innerHTML = `
-    <div class="bubble">
-      <div class="typing"><span></span><span></span><span></span></div>
-    </div>
-    <div class="msg-meta" id="meta-${Date.now()}" style="display:none"></div>`;
+    <div class="bubble">${makeProgressHTML('正在初始化…', 3)}</div>
+    <div class="msg-meta" id="${metaId}" style="display:none"></div>`;
   chat.appendChild(el);
   chat.scrollTop = chat.scrollHeight;
-  return el;
+  return { el, metaId };
 }
 
 // ── Main send ────────────────────────────────────────────────────────────
@@ -462,12 +500,13 @@ async function sendQuery() {
   qEl.value = ''; qEl.style.height = 'auto';
 
   addUserMsg(query);
-  const aEl = addAssistantMsg();
+  const { el: aEl, metaId } = addAssistantMsg();
   const bubble = aEl.querySelector('.bubble');
-  const meta   = aEl.querySelector('.msg-meta');
+  const meta   = document.getElementById(metaId);
 
   let fullText = '';
   let cacheId = null;
+  let tokenStarted = false;
 
   try {
     const resp = await fetch(`${API}/chat`, {
@@ -487,8 +526,6 @@ async function sendQuery() {
     const dec = new TextDecoder();
     let buf = '';
 
-    bubble.innerHTML = '';  // clear typing indicator
-
     while (true) {
       const {done, value} = await reader.read();
       if (done) break;
@@ -498,16 +535,26 @@ async function sendQuery() {
 
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
-        const evt = JSON.parse(line.slice(6));
+        let evt;
+        try { evt = JSON.parse(line.slice(6)); } catch { continue; }
 
-        if (evt.type === 'token') {
+        if (evt.type === 'step') {
+          // Show / update progress bar
+          bubble.innerHTML = makeProgressHTML(evt.step, evt.progress || 5);
+          document.getElementById('chat').scrollTop = 9999;
+
+        } else if (evt.type === 'token') {
+          if (!tokenStarted) {
+            // First token — clear progress bar and start rendering text
+            tokenStarted = true;
+            bubble.innerHTML = '';
+          }
           fullText += evt.text;
           bubble.innerHTML = `<p>${renderMd(fullText)}</p>`;
           document.getElementById('chat').scrollTop = 9999;
 
         } else if (evt.type === 'done') {
           cacheId = evt.cache_id;
-          // Build meta row
           const srcs = (evt.sources||[]).map(s => sourceChip(s)).join('');
           const conf  = confidenceHTML(evt.confidence, evt.from_cache);
           meta.style.display = '';

@@ -34,13 +34,11 @@ def _get_cache_col():
     global _cache_col
     if _cache_col is None:
         client = chromadb.PersistentClient(path=VECTOR_DB_DIR)
-        try:
-            _cache_col = client.get_collection(CACHE_COLLECTION, embedding_function=_get_embed_fn())
-        except Exception:
-            _cache_col = client.create_collection(
-                CACHE_COLLECTION, embedding_function=_get_embed_fn(),
-                metadata={"hnsw:space": "cosine"}
-            )
+        _cache_col = client.get_or_create_collection(
+            CACHE_COLLECTION,
+            embedding_function=_get_embed_fn(),
+            metadata={"hnsw:space": "cosine"},
+        )
     return _cache_col
 
 
@@ -67,8 +65,14 @@ def cache_lookup(query: str) -> Optional[Dict]:
     Look up query in semantic cache.
     Returns cached entry dict (with 'answer', 'sources') or None.
     """
-    col = _get_cache_col()
-    if col.count() == 0:
+    try:
+        col = _get_cache_col()
+    except Exception:
+        return None
+    try:
+        if col.count() == 0:
+            return None
+    except Exception:
         return None
 
     results = col.query(query_texts=[query], n_results=1, include=["distances", "metadatas"])
@@ -115,23 +119,24 @@ def cache_lookup(query: str) -> Optional[Dict]:
 
 
 def cache_store(query: str, answer: str, sources: list = None) -> str:
-    """Store a new query-answer pair. Returns cache_id."""
+    """Store a new query-answer pair. Returns cache_id (or empty string on error)."""
     cache_id = hashlib.md5(query.encode()).hexdigest()
-
-    col = _get_cache_col()
-    col.upsert(
-        ids=[cache_id],
-        documents=[query],
-        metadatas=[{"query": query[:200]}],
-    )
-
-    conn = _get_db()
-    conn.execute("""
-        INSERT OR REPLACE INTO cache (id, query, answer, sources, created_at)
-        VALUES (?, ?, ?, ?, ?)
-    """, (cache_id, query, answer, json.dumps(sources or []), time.time()))
-    conn.commit()
-    conn.close()
+    try:
+        col = _get_cache_col()
+        col.upsert(
+            ids=[cache_id],
+            documents=[query],
+            metadatas=[{"query": query[:200]}],
+        )
+        conn = _get_db()
+        conn.execute("""
+            INSERT OR REPLACE INTO cache (id, query, answer, sources, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (cache_id, query, answer, json.dumps(sources or []), time.time()))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[Cache] store error (non-fatal): {e}")
     return cache_id
 
 

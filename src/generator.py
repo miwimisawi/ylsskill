@@ -48,6 +48,7 @@ def generate(
     temperature: float = 0.2,
     max_tokens: int = 1024,
     stream: bool = False,
+    token_callback=None,
 ) -> str:
     """
     Generate answer from query + retrieved context.
@@ -57,7 +58,8 @@ def generate(
         context: Retrieved and compressed context from CRAG
         provider: "siliconflow" | "openai" | "local"
         model: Override model name
-        stream: If True, prints tokens as they arrive and returns full string
+        stream: If True, prints tokens to stdout as they arrive
+        token_callback: Optional callable(str) invoked with each token chunk
     """
     if provider == "local":
         return "[本地模型接口预留 - 请配置 Ollama/vLLM]"
@@ -80,18 +82,28 @@ def generate(
         {"role": "user",   "content": user_content},
     ]
 
-    if stream:
+    if stream or token_callback is not None:
         full = ""
+        extra = {"enable_thinking": False} if provider == "siliconflow" else {}
         resp = client.chat.completions.create(
             model=model, messages=messages,
             max_tokens=max_tokens, temperature=temperature,
             stream=True,
+            extra_body=extra if extra else None,
         )
         for chunk in resp:
             delta = chunk.choices[0].delta.content or ""
-            print(delta, end="", flush=True)
-            full += delta
-        print()
+            if not delta:
+                # Fallback: some models put content in reasoning_content during thinking
+                delta = getattr(chunk.choices[0].delta, "reasoning_content", "") or ""
+            if delta:
+                if stream:
+                    print(delta, end="", flush=True)
+                if token_callback is not None:
+                    token_callback(delta)
+                full += delta
+        if stream:
+            print()
         return full
     else:
         resp = client.chat.completions.create(
